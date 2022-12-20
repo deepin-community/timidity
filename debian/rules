@@ -1,0 +1,56 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/architecture.mk
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+defaultaudio=ao
+ifeq ($(DEB_HOST_ARCH_OS), linux)
+audio = default,ao,jack,vorbis,flac,speex,alsa
+interface = ncurses,emacs,xaw,alsaseq
+else
+audio = default,ao,jack,vorbis,flac,speex
+interface = ncurses,emacs,xaw
+endif
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	dh_auto_configure -- \
+		--with-default-path=/etc/timidity \
+		--enable-interface=$(interface) \
+		--enable-dynamic=slang,tcltk,vt100,xskin,gtk \
+		--disable-server --disable-network \
+		--enable-spectrogram --enable-wrd \
+		--with-x \
+		--with-default-output=$(defaultaudio) \
+		--with-tcl-includes=/usr/include/tcl \
+		--with-lispdir=/usr/share/emacs/site-lisp/timidity-el \
+		--enable-audio=$(audio)
+
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS) $(DEB_BUILD_PROFILES)))
+override_dh_auto_test:
+	# require /etc/timidity/timidity.cfg
+	# timidity/timidity --verbose debian/test_sample.mid -Ov -o /dev/null
+else
+override_dh_auto_test:
+        @echo '**********************************************************'
+        @echo 'Skip test suite                                           '
+        @echo '**********************************************************'
+endif
+
+override_dh_installman:
+	dh_installman -ptimidity --language=C doc/C/timidity.1 doc/C/timidity.cfg.5
+	dh_installman -ptimidity --language=ja doc/ja*/timidity.1 doc/ja*/timidity.cfg.5
+	dh_installman --remaining-packages
+
+override_dh_installchangelogs:
+	dh_installchangelogs NEWS
+
+override_dh_fixperms-arch:
+	chmod a+x debian/timidity-interfaces-extra/usr/lib/timidity/tk*.tcl
+	dh_fixperms -a
+
+override_dh_installinit:
+	dh_installinit -ptimidity-daemon --name=timidity
